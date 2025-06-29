@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bouldering Competition Score Tracker</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        text-align: center;
+        color: #333;
+        margin-bottom: 30px;
+      }
+      .add-competitor {
+        margin-bottom: 20px;
+        display: flex;
+        gap: 10px;
+      }
+      .add-competitor input {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+        flex: 1;
+        max-width: 300px;
+      }
+      .add-competitor button {
+        padding: 8px 16px;
+        background: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .add-competitor button:hover {
+        background: #45a049;
+      }
+      .add-competitor button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+      th,
+      td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+      }
+      th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+      .boulder-section {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: center;
+      }
+      .boulder-controls {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+      }
+      .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .checkbox-group input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+      }
+      .checkbox-group label {
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .ternary-button {
+        width: 60px;
+        height: 28px;
+        border: 1px solid #ddd;
+        background: white;
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+      }
+      .ternary-button:hover {
+        background: #f0f0f0;
+      }
+      .ternary-button.success {
+        background: #4caf50;
+        color: white;
+        border-color: #4caf50;
+      }
+      .ternary-button.failed {
+        background: #f44336;
+        color: white;
+        border-color: #f44336;
+      }
+      .attempts-control {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .attempts-control button {
+        width: 24px;
+        height: 24px;
+        border: 1px solid #ddd;
+        background: white;
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 16px;
+        line-height: 1;
+        padding: 0;
+      }
+      .attempts-control button:hover {
+        background: #f0f0f0;
+      }
+      .attempts-control input {
+        width: 40px;
+        text-align: center;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 4px;
+      }
+      .score {
+        font-weight: bold;
+        font-size: 14px;
+        color: #666;
+      }
+      .total-score {
+        font-weight: bold;
+        font-size: 16px;
+        color: #333;
+      }
+      .position {
+        font-weight: bold;
+        font-size: 18px;
+      }
+      .position-1 {
+        color: #ffd700;
+      }
+      .position-2 {
+        color: #c0c0c0;
+      }
+      .position-3 {
+        color: #cd7f32;
+      }
+      .remove-btn {
+        background: #f44336;
+        color: white;
+        border: none;
+        padding: 4px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      .remove-btn:hover {
+        background: #da190b;
+      }
+      @media (max-width: 768px) {
+        table {
+          font-size: 12px;
+        }
+        th,
+        td {
+          padding: 8px 4px;
+        }
+        .boulder-controls {
+          flex-direction: column;
+          gap: 5px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🧗 Bouldering Competition Score Tracker</h1>
+
+      <div class="add-competitor">
+        <input
+          type="text"
+          id="competitorName"
+          placeholder="Enter competitor name"
+          maxlength="50"
+        />
+        <button onclick="addCompetitor()" id="addButton">Add Competitor</button>
+        <span id="competitorCount" style="margin-left: 10px; color: #666"
+          >0 competitors</span
+        >
+      </div>
+
+      <div style="margin: 20px 0">
+        <button
+          onclick="showPodiumAnalysis()"
+          style="
+            padding: 10px 20px;
+            background: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+          "
+        >
+          📊 Analyze Podium Chances
+        </button>
+      </div>
+
+      <div
+        id="podiumAnalysis"
+        style="
+          display: none;
+          margin: 20px 0;
+          padding: 20px;
+          background: #f8f9fa;
+          border-radius: 8px;
+        "
+      >
+        <h2 style="margin-top: 0">Podium Analysis</h2>
+        <div id="analysisContent"></div>
+      </div>
+
+      <table id="scoreTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Boulder 1</th>
+            <th>Boulder 2</th>
+            <th>Boulder 3</th>
+            <th>Boulder 4</th>
+            <th>Total</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="competitorsList"></tbody>
+      </table>
+    </div>
+
+    <script>
+      let competitors = [];
+      let competitorId = 0;
+
+      function addCompetitor() {
+        const nameInput = document.getElementById("competitorName");
+        const name = nameInput.value.trim();
+
+        if (!name) {
+          alert("Please enter a competitor name");
+          return;
+        }
+
+        if (competitors.length >= 50) {
+          alert("Maximum 50 competitors allowed");
+          return;
+        }
+
+        const competitor = {
+          id: competitorId++,
+          name: name,
+          boulders: [
+            { zone: null, top: false, attempts: 1, attempted: false },
+            { zone: null, top: false, attempts: 1, attempted: false },
+            { zone: null, top: false, attempts: 1, attempted: false },
+            { zone: null, top: false, attempts: 1, attempted: false },
+          ],
+        };
+
+        competitors.push(competitor);
+        nameInput.value = "";
+        updateDisplay();
+
+        // Update button state
+        if (competitors.length >= 50) {
+          document.getElementById("addButton").disabled = true;
+        }
+      }
+
+      function removeCompetitor(id) {
+        competitors = competitors.filter((c) => c.id !== id);
+        updateDisplay();
+        document.getElementById("addButton").disabled = false;
+      }
+
+      function updateZone(competitorId, boulderIndex) {
+        const competitor = competitors.find((c) => c.id === competitorId);
+        if (!competitor) return;
+
+        const boulder = competitor.boulders[boulderIndex];
+
+        // Cycle through: null (not attempted) -> true (achieved) -> false (failed) -> null
+        if (boulder.zone === null) {
+          boulder.zone = true;
+          boulder.attempted = true;
+        } else if (boulder.zone === true) {
+          boulder.zone = false;
+          boulder.top = false; // If zone failed, top is also failed
+        } else {
+          boulder.zone = null;
+          boulder.attempted = false;
+          boulder.top = false;
+          boulder.attempts = 1; // Reset attempts when not attempted
+        }
+
+        updateDisplay();
+      }
+
+      function updateCheckbox(competitorId, boulderIndex, type, checked) {
+        const competitor = competitors.find((c) => c.id === competitorId);
+        if (!competitor) return;
+
+        const boulder = competitor.boulders[boulderIndex];
+
+        if (type === "top") {
+          boulder.top = checked;
+          boulder.attempted = true;
+          // If checking top, also set zone to achieved
+          if (checked && boulder.zone !== true) {
+            boulder.zone = true;
+          }
+        }
+
+        updateDisplay();
+      }
+
+      function updateAttempts(competitorId, boulderIndex, value) {
+        const competitor = competitors.find((c) => c.id === competitorId);
+        if (!competitor) return;
+
+        const attempts = parseInt(value) || 1;
+        competitor.boulders[boulderIndex].attempts = Math.max(1, attempts);
+        updateDisplay();
+      }
+
+      function changeAttempts(competitorId, boulderIndex, delta) {
+        const competitor = competitors.find((c) => c.id === competitorId);
+        if (!competitor) return;
+
+        const boulder = competitor.boulders[boulderIndex];
+        boulder.attempts = Math.max(1, boulder.attempts + delta);
+        updateDisplay();
+      }
+
+      function calculateBoulderScore(boulder) {
+        if (!boulder.attempted || boulder.zone === null) return 0;
+        if (boulder.zone === false && !boulder.top) return 0; // Failed
+
+        let score = 0;
+        if (boulder.top) {
+          score = 100;
+        } else if (boulder.zone === true) {
+          score = 25;
+        }
+
+        // Deduct 0.1 for each attempt after the first
+        const deduction = (boulder.attempts - 1) * 0.1;
+        return Math.max(0, score - deduction);
+      }
+
+      function calculateTotalScore(competitor) {
+        return competitor.boulders.reduce((total, boulder) => {
+          return total + calculateBoulderScore(boulder);
+        }, 0);
+      }
+
+      function updateDisplay() {
+        const tbody = document.getElementById("competitorsList");
+        const competitorCount = document.getElementById("competitorCount");
+
+        // Update competitor count
+        competitorCount.textContent = `${competitors.length} competitors`;
+
+        // Calculate scores but keep original order
+        const competitorsWithScores = competitors.map((c) => ({
+          ...c,
+          totalScore: calculateTotalScore(c),
+        }));
+
+        // Clear existing rows
+        tbody.innerHTML = "";
+
+        // Add rows for each competitor in original order
+        competitorsWithScores.forEach((competitor, index) => {
+          const row = document.createElement("tr");
+
+          // Show row number instead of position
+          const posCell = document.createElement("td");
+          posCell.textContent = index + 1;
+          row.appendChild(posCell);
+
+          // Name
+          const nameCell = document.createElement("td");
+          nameCell.textContent = competitor.name;
+          row.appendChild(nameCell);
+
+          // Boulders
+          for (let i = 0; i < 4; i++) {
+            const boulder = competitor.boulders[i];
+            const boulderCell = document.createElement("td");
+
+            const boulderSection = document.createElement("div");
+            boulderSection.className = "boulder-section";
+
+            const controls = document.createElement("div");
+            controls.className = "boulder-controls";
+
+            // Zone ternary button
+            const zoneButton = document.createElement("button");
+            zoneButton.className = "ternary-button";
+            if (boulder.zone === true) {
+              zoneButton.className += " success";
+            } else if (boulder.zone === false) {
+              zoneButton.className += " failed";
+            }
+            zoneButton.textContent = "Zone";
+            zoneButton.onclick = () => updateZone(competitor.id, i);
+
+            // Top checkbox
+            const topGroup = document.createElement("div");
+            topGroup.className = "checkbox-group";
+            const topCheckbox = document.createElement("input");
+            topCheckbox.type = "checkbox";
+            topCheckbox.id = `top-${competitor.id}-${i}`;
+            topCheckbox.checked = boulder.top;
+            topCheckbox.onchange = (e) =>
+              updateCheckbox(competitor.id, i, "top", e.target.checked);
+            const topLabel = document.createElement("label");
+            topLabel.htmlFor = `top-${competitor.id}-${i}`;
+            topLabel.textContent = "Top";
+            topGroup.appendChild(topCheckbox);
+            topGroup.appendChild(topLabel);
+
+            controls.appendChild(zoneButton);
+            controls.appendChild(topGroup);
+
+            // Attempts control
+            const attemptsControl = document.createElement("div");
+            attemptsControl.className = "attempts-control";
+
+            const minusBtn = document.createElement("button");
+            minusBtn.textContent = "-";
+            minusBtn.onclick = () => changeAttempts(competitor.id, i, -1);
+
+            const attemptsInput = document.createElement("input");
+            attemptsInput.type = "number";
+            attemptsInput.min = "1";
+            attemptsInput.value = boulder.attempts;
+            attemptsInput.onchange = (e) =>
+              updateAttempts(competitor.id, i, e.target.value);
+
+            const plusBtn = document.createElement("button");
+            plusBtn.textContent = "+";
+            plusBtn.onclick = () => changeAttempts(competitor.id, i, 1);
+
+            attemptsControl.appendChild(minusBtn);
+            attemptsControl.appendChild(attemptsInput);
+            attemptsControl.appendChild(plusBtn);
+
+            controls.appendChild(attemptsControl);
+
+            boulderSection.appendChild(controls);
+
+            // Score display
+            const score = calculateBoulderScore(boulder);
+            const scoreDiv = document.createElement("div");
+            scoreDiv.className = "score";
+            scoreDiv.textContent = `Score: ${score.toFixed(1)}`;
+            boulderSection.appendChild(scoreDiv);
+
+            boulderCell.appendChild(boulderSection);
+            row.appendChild(boulderCell);
+          }
+
+          // Total score
+          const totalCell = document.createElement("td");
+          totalCell.innerHTML = `<span class="total-score">${competitor.totalScore.toFixed(
+            1
+          )}</span>`;
+          row.appendChild(totalCell);
+
+          // Remove button
+          const actionCell = document.createElement("td");
+          const removeBtn = document.createElement("button");
+          removeBtn.className = "remove-btn";
+          removeBtn.textContent = "Remove";
+          removeBtn.onclick = () => removeCompetitor(competitor.id);
+          actionCell.appendChild(removeBtn);
+          row.appendChild(actionCell);
+
+          tbody.appendChild(row);
+        });
+      }
+
+      // Allow Enter key to add competitor
+      document
+        .getElementById("competitorName")
+        .addEventListener("keypress", function (e) {
+          if (e.key === "Enter") {
+            addCompetitor();
+          }
+        });
+
+      function showPodiumAnalysis() {
+        const analysisDiv = document.getElementById("podiumAnalysis");
+        const content = document.getElementById("analysisContent");
+
+        if (competitors.length === 0) {
+          alert("Please add competitors first");
+          return;
+        }
+
+        // Toggle display
+        if (analysisDiv.style.display === "none") {
+          analysisDiv.style.display = "block";
+          content.innerHTML = generatePodiumAnalysis();
+        } else {
+          analysisDiv.style.display = "none";
+        }
+      }
+
+      function generatePodiumAnalysis() {
+        // Calculate current scores and get current standings
+        const competitorAnalysis = competitors.map((c) => {
+          const currentScore = calculateTotalScore(c);
+          const unattemptedBoulders = c.boulders.filter((b) => !b.attempted);
+          const remainingBoulders = unattemptedBoulders.length;
+          const maxPossibleScore = currentScore + remainingBoulders * 100;
+
+          return {
+            ...c,
+            currentScore,
+            remainingBoulders,
+            unattemptedBoulders,
+            maxPossibleScore,
+          };
+        });
+
+        // Sort by current score to find current standings
+        const currentStandings = [...competitorAnalysis].sort(
+          (a, b) => b.currentScore - a.currentScore
+        );
+
+        // Add current position to each competitor
+        competitorAnalysis.forEach((comp) => {
+          comp.currentPosition =
+            currentStandings.findIndex((c) => c.id === comp.id) + 1;
+        });
+
+        let html = "";
+
+        // Sort by current position for display
+        const sortedByPosition = [...competitorAnalysis].sort(
+          (a, b) => a.currentPosition - b.currentPosition
+        );
+
+        sortedByPosition.forEach((competitor) => {
+          const scenarios = analyzePodiumScenarios(
+            competitor,
+            competitorAnalysis,
+            currentStandings
+          );
+
+          const positionSuffix =
+            competitor.currentPosition === 1
+              ? "st"
+              : competitor.currentPosition === 2
+              ? "nd"
+              : competitor.currentPosition === 3
+              ? "rd"
+              : "th";
+
+          html += `<div style="margin-bottom: 20px; padding: 15px; background: white; border-radius: 4px; border: 1px solid #ddd;">`;
+          html += `<h3 style="margin-top: 0; color: #333;">${
+            competitor.name
+          } - Currently ${
+            competitor.currentPosition
+          }${positionSuffix} place (${competitor.currentScore.toFixed(
+            1
+          )} points)</h3>`;
+
+          if (competitor.remainingBoulders === 0) {
+            html += `<p style="color: #666;">All boulders attempted - final score: ${competitor.currentScore.toFixed(
+              1
+            )} points</p>`;
+          } else if (scenarios.length === 0) {
+            html += `<p style="color: #666;">Cannot reach podium - maximum possible score: ${competitor.maxPossibleScore.toFixed(
+              1
+            )} points</p>`;
+          } else {
+            html += `<ul style="margin: 0; padding-left: 20px;">`;
+            scenarios.forEach((scenario) => {
+              html += `<li style="margin-bottom: 8px; color: #333;">${scenario}</li>`;
+            });
+            html += `</ul>`;
+          }
+
+          html += `</div>`;
+        });
+
+        return html;
+      }
+
+      function analyzePodiumScenarios(
+        competitor,
+        allCompetitors,
+        currentStandings
+      ) {
+        const scenarios = [];
+        const unattemptedBoulders = competitor.boulders
+          .map((b, idx) => ({ boulder: b, index: idx }))
+          .filter((item) => !item.boulder.attempted);
+
+        if (unattemptedBoulders.length === 0) {
+          return scenarios;
+        }
+
+        // Get scores needed for each podium position
+        const targetScores = {
+          1:
+            currentStandings[0]?.id === competitor.id
+              ? currentStandings[1]?.currentScore || 0
+              : currentStandings[0]?.currentScore || 0,
+          2:
+            currentStandings[1]?.id === competitor.id
+              ? currentStandings[2]?.currentScore || 0
+              : currentStandings[1]?.currentScore || 0,
+          3:
+            currentStandings[2]?.id === competitor.id
+              ? currentStandings[3]?.currentScore || 0
+              : currentStandings[2]?.currentScore || 0,
+        };
+
+        // Check each podium position
+        for (let position = 1; position <= 3; position++) {
+          const targetScore = targetScores[position];
+          const needed = targetScore - competitor.currentScore + 0.1;
+
+          if (competitor.currentPosition === position && needed <= 0) {
+            scenarios.push(
+              `Currently holding ${position}${
+                position === 1 ? "st" : position === 2 ? "nd" : "rd"
+              } place`
+            );
+            continue;
+          }
+
+          if (needed <= 0) continue;
+
+          // Check if it's even possible to reach this score
+          if (competitor.maxPossibleScore < targetScore) {
+            continue; // Skip this position as it's impossible to reach
+          }
+
+          // Find the simplest path to reach this position
+          const paths = calculateOptimalPaths(
+            unattemptedBoulders,
+            needed,
+            competitor,
+            currentStandings,
+            targetScore
+          );
+
+          if (paths.length > 0) {
+            const positionName =
+              position === 1 ? "1st" : position === 2 ? "2nd" : "3rd";
+            scenarios.push(
+              ...paths.map((path) => `For ${positionName}: ${path}`)
+            );
+          }
+        }
+
+        return scenarios;
+      }
+
+      function calculateOptimalPaths(
+        unattemptedBoulders,
+        neededScore,
+        competitor,
+        currentStandings,
+        targetScore
+      ) {
+        const paths = [];
+        const boulderNumbers = unattemptedBoulders.map((b) => b.index + 1);
+
+        // Double-check if the score is achievable
+        const maxPossibleFromRemaining = unattemptedBoulders.length * 100;
+        if (neededScore > maxPossibleFromRemaining) {
+          return paths; // Impossible to reach target
+        }
+
+        // Case 1: Single boulder scenarios
+        if (neededScore <= 100 && unattemptedBoulders.length >= 1) {
+          const maxAttempts = Math.floor((100 - neededScore) / 0.1) + 1;
+
+          if (maxAttempts >= 1) {
+            if (boulderNumbers.length === 1) {
+              paths.push(
+                `Complete Boulder ${
+                  boulderNumbers[0]
+                } top within ${maxAttempts} attempt${
+                  maxAttempts > 1 ? "s" : ""
+                }`
+              );
+            } else {
+              paths.push(
+                `Complete any 1 top within ${maxAttempts} attempt${
+                  maxAttempts > 1 ? "s" : ""
+                }`
+              );
+            }
+          }
+
+          // Check if just a zone would work
+          if (neededScore <= 25) {
+            const zoneAttempts = Math.floor((25 - neededScore) / 0.1) + 1;
+            if (zoneAttempts >= 1) {
+              paths.push(
+                `Get 1 zone within ${zoneAttempts} attempt${
+                  zoneAttempts > 1 ? "s" : ""
+                }`
+              );
+            }
+          }
+        }
+
+        // Case 2: Multiple boulder scenarios
+        if (neededScore > 25 && unattemptedBoulders.length >= 2) {
+          const topsNeeded = Math.ceil(neededScore / 100);
+
+          if (topsNeeded <= unattemptedBoulders.length) {
+            // Calculate average attempts allowed
+            const totalScoreNeeded = topsNeeded * 100;
+            const allowedDeduction = totalScoreNeeded - neededScore;
+            const avgAttemptsPerTop =
+              Math.floor(allowedDeduction / (topsNeeded * 0.1)) + 1;
+
+            if (avgAttemptsPerTop >= 1) {
+              const boulderList = boulderNumbers
+                .slice(0, topsNeeded)
+                .join(", ");
+              if (topsNeeded === unattemptedBoulders.length) {
+                paths.push(
+                  `Complete all ${topsNeeded} remaining tops averaging ${avgAttemptsPerTop} attempts each`
+                );
+              } else {
+                paths.push(
+                  `Complete ${topsNeeded} tops (e.g., Boulders ${boulderList}) averaging ${avgAttemptsPerTop} attempts each`
+                );
+              }
+            }
+          }
+        }
+
+        // Case 3: Reference to other competitors - only if achievable
+        const competitorAhead = currentStandings.find(
+          (c) => Math.abs(c.currentScore - targetScore) < 0.01
+        );
+        if (
+          competitorAhead &&
+          competitorAhead.id !== competitor.id &&
+          competitor.maxPossibleScore >= targetScore
+        ) {
+          const theirRemaining = competitorAhead.boulders.filter(
+            (b) => !b.attempted
+          ).length;
+          if (theirRemaining > 0) {
+            paths.push(
+              `Match ${competitorAhead.name}'s score with fewer total attempts`
+            );
+          }
+        }
+
+        return paths.slice(0, 2); // Return only the 2 most relevant paths
+      }
+
+      // Initial display update
+      updateDisplay();
+    </script>
+  </body>
+</html>
