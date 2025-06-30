@@ -104,8 +104,19 @@
       }
       .boulder-controls {
         display: flex;
-        gap: 15px;
+        flex-direction: column;
+        gap: 8px;
         align-items: center;
+      }
+      .boulder-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        font-size: 12px;
+      }
+      .boulder-row .ternary-button,
+      .boulder-row .checkbox-group {
+        min-width: 60px;
       }
       .checkbox-group {
         display: flex;
@@ -251,7 +262,9 @@
           padding: 8px 4px;
         }
         .boulder-controls {
-          flex-direction: column;
+          gap: 4px;
+        }
+        .boulder-row {
           gap: 5px;
         }
         .add-competitor input {
@@ -429,7 +442,8 @@
             .map(() => ({
               zone: null,
               top: false,
-              attempts: 1,
+              zoneAttempts: 1,
+              topAttempts: 1,
               attempted: false,
             })),
         };
@@ -482,7 +496,8 @@
           boulder.zone = null;
           boulder.attempted = false;
           boulder.top = false;
-          boulder.attempts = 1; // Reset attempts when not attempted
+          boulder.zoneAttempts = 1; // Reset attempts when not attempted
+          boulder.topAttempts = 1;
         }
 
         debouncedUpdateDisplay();
@@ -506,46 +521,84 @@
         debouncedUpdateDisplay();
       }
 
-      function updateAttempts(competitorId, boulderIndex, value) {
+      function updateZoneAttempts(competitorId, boulderIndex, value) {
         const competitor = competitors.find((c) => c.id === competitorId);
         if (!competitor) return;
 
         const attempts = parseInt(value) || 1;
         if (attempts < 1 || attempts > MAX_ATTEMPTS) {
-          showError(`Attempts must be between 1 and ${MAX_ATTEMPTS}`);
+          showError(`Zone attempts must be between 1 and ${MAX_ATTEMPTS}`);
           return;
         }
 
-        competitor.boulders[boulderIndex].attempts = attempts;
+        competitor.boulders[boulderIndex].zoneAttempts = attempts;
         debouncedUpdateDisplay();
       }
 
-      function changeAttempts(competitorId, boulderIndex, delta) {
+      function changeZoneAttempts(competitorId, boulderIndex, delta) {
         const competitor = competitors.find((c) => c.id === competitorId);
         if (!competitor) return;
 
         const boulder = competitor.boulders[boulderIndex];
         const newAttempts = Math.max(
           1,
-          Math.min(MAX_ATTEMPTS, boulder.attempts + delta)
+          Math.min(MAX_ATTEMPTS, boulder.zoneAttempts + delta)
         );
-        boulder.attempts = newAttempts;
+        boulder.zoneAttempts = newAttempts;
+        debouncedUpdateDisplay();
+      }
+
+      function updateTopAttempts(competitorId, boulderIndex, value) {
+        const competitor = competitors.find((c) => c.id === competitorId);
+        if (!competitor) return;
+
+        const attempts = parseInt(value) || 1;
+        if (attempts < 1 || attempts > MAX_ATTEMPTS) {
+          showError(`Top attempts must be between 1 and ${MAX_ATTEMPTS}`);
+          return;
+        }
+
+        competitor.boulders[boulderIndex].topAttempts = attempts;
+        debouncedUpdateDisplay();
+      }
+
+      function changeTopAttempts(competitorId, boulderIndex, delta) {
+        const competitor = competitors.find((c) => c.id === competitorId);
+        if (!competitor) return;
+
+        const boulder = competitor.boulders[boulderIndex];
+        const newAttempts = Math.max(
+          1,
+          Math.min(MAX_ATTEMPTS, boulder.topAttempts + delta)
+        );
+        boulder.topAttempts = newAttempts;
         debouncedUpdateDisplay();
       }
 
       function calculateBoulderScore(boulder) {
+        // Migrate old format if needed
+        if ("attempts" in boulder && !("zoneAttempts" in boulder)) {
+          boulder.zoneAttempts = boulder.attempts;
+          boulder.topAttempts = boulder.attempts;
+          delete boulder.attempts;
+        }
+
         if (!boulder.attempted || boulder.zone === null) return 0;
         if (boulder.zone === false && !boulder.top) return 0; // Failed
 
         let score = 0;
+        let attemptsToDeduct = 0;
+
         if (boulder.top) {
           score = TOP_SCORE;
+          attemptsToDeduct = boulder.topAttempts;
         } else if (boulder.zone === true) {
           score = ZONE_SCORE;
+          attemptsToDeduct = boulder.zoneAttempts;
         }
 
         // Deduct ATTEMPT_DEDUCTION for each attempt after the first
-        const deduction = (boulder.attempts - 1) * ATTEMPT_DEDUCTION;
+        const deduction = (attemptsToDeduct - 1) * ATTEMPT_DEDUCTION;
         return Math.max(0, Math.round((score - deduction) * 10) / 10); // Round to 1 decimal place
       }
 
@@ -609,6 +662,17 @@
             const controls = document.createElement("div");
             controls.className = "boulder-controls";
 
+            // Migrate old format if needed
+            if ("attempts" in boulder && !("zoneAttempts" in boulder)) {
+              boulder.zoneAttempts = boulder.attempts;
+              boulder.topAttempts = boulder.attempts;
+              delete boulder.attempts;
+            }
+
+            // Zone row
+            const zoneRow = document.createElement("div");
+            zoneRow.className = "boulder-row";
+
             // Zone ternary button
             const zoneButton = document.createElement("button");
             zoneButton.className = "ternary-button";
@@ -637,6 +701,49 @@
               }
             };
 
+            // Zone attempts control
+            const zoneAttemptsControl = document.createElement("div");
+            zoneAttemptsControl.className = "attempts-control";
+            zoneAttemptsControl.setAttribute("role", "group");
+            zoneAttemptsControl.setAttribute(
+              "aria-label",
+              `Zone attempts for boulder ${i + 1}`
+            );
+
+            const zoneMinusBtn = document.createElement("button");
+            zoneMinusBtn.textContent = "-";
+            zoneMinusBtn.setAttribute("aria-label", "Decrease zone attempts");
+            zoneMinusBtn.onclick = () =>
+              changeZoneAttempts(competitor.id, i, -1);
+
+            const zoneAttemptsInput = document.createElement("input");
+            zoneAttemptsInput.type = "number";
+            zoneAttemptsInput.min = "1";
+            zoneAttemptsInput.max = MAX_ATTEMPTS.toString();
+            zoneAttemptsInput.value = boulder.zoneAttempts;
+            zoneAttemptsInput.setAttribute(
+              "aria-label",
+              `Number of zone attempts for boulder ${i + 1}`
+            );
+            zoneAttemptsInput.onchange = (e) =>
+              updateZoneAttempts(competitor.id, i, e.target.value);
+
+            const zonePlusBtn = document.createElement("button");
+            zonePlusBtn.textContent = "+";
+            zonePlusBtn.setAttribute("aria-label", "Increase zone attempts");
+            zonePlusBtn.onclick = () => changeZoneAttempts(competitor.id, i, 1);
+
+            zoneAttemptsControl.appendChild(zoneMinusBtn);
+            zoneAttemptsControl.appendChild(zoneAttemptsInput);
+            zoneAttemptsControl.appendChild(zonePlusBtn);
+
+            zoneRow.appendChild(zoneButton);
+            zoneRow.appendChild(zoneAttemptsControl);
+
+            // Top row
+            const topRow = document.createElement("div");
+            topRow.className = "boulder-row";
+
             // Top checkbox
             const topGroup = document.createElement("div");
             topGroup.className = "checkbox-group";
@@ -657,45 +764,46 @@
             topGroup.appendChild(topCheckbox);
             topGroup.appendChild(topLabel);
 
-            controls.appendChild(zoneButton);
-            controls.appendChild(topGroup);
-
-            // Attempts control
-            const attemptsControl = document.createElement("div");
-            attemptsControl.className = "attempts-control";
-            attemptsControl.setAttribute("role", "group");
-            attemptsControl.setAttribute(
+            // Top attempts control
+            const topAttemptsControl = document.createElement("div");
+            topAttemptsControl.className = "attempts-control";
+            topAttemptsControl.setAttribute("role", "group");
+            topAttemptsControl.setAttribute(
               "aria-label",
-              `Attempts for boulder ${i + 1}`
+              `Top attempts for boulder ${i + 1}`
             );
 
-            const minusBtn = document.createElement("button");
-            minusBtn.textContent = "-";
-            minusBtn.setAttribute("aria-label", "Decrease attempts");
-            minusBtn.onclick = () => changeAttempts(competitor.id, i, -1);
+            const topMinusBtn = document.createElement("button");
+            topMinusBtn.textContent = "-";
+            topMinusBtn.setAttribute("aria-label", "Decrease top attempts");
+            topMinusBtn.onclick = () => changeTopAttempts(competitor.id, i, -1);
 
-            const attemptsInput = document.createElement("input");
-            attemptsInput.type = "number";
-            attemptsInput.min = "1";
-            attemptsInput.max = MAX_ATTEMPTS.toString();
-            attemptsInput.value = boulder.attempts;
-            attemptsInput.setAttribute(
+            const topAttemptsInput = document.createElement("input");
+            topAttemptsInput.type = "number";
+            topAttemptsInput.min = "1";
+            topAttemptsInput.max = MAX_ATTEMPTS.toString();
+            topAttemptsInput.value = boulder.topAttempts;
+            topAttemptsInput.setAttribute(
               "aria-label",
-              `Number of attempts for boulder ${i + 1}`
+              `Number of top attempts for boulder ${i + 1}`
             );
-            attemptsInput.onchange = (e) =>
-              updateAttempts(competitor.id, i, e.target.value);
+            topAttemptsInput.onchange = (e) =>
+              updateTopAttempts(competitor.id, i, e.target.value);
 
-            const plusBtn = document.createElement("button");
-            plusBtn.textContent = "+";
-            plusBtn.setAttribute("aria-label", "Increase attempts");
-            plusBtn.onclick = () => changeAttempts(competitor.id, i, 1);
+            const topPlusBtn = document.createElement("button");
+            topPlusBtn.textContent = "+";
+            topPlusBtn.setAttribute("aria-label", "Increase top attempts");
+            topPlusBtn.onclick = () => changeTopAttempts(competitor.id, i, 1);
 
-            attemptsControl.appendChild(minusBtn);
-            attemptsControl.appendChild(attemptsInput);
-            attemptsControl.appendChild(plusBtn);
+            topAttemptsControl.appendChild(topMinusBtn);
+            topAttemptsControl.appendChild(topAttemptsInput);
+            topAttemptsControl.appendChild(topPlusBtn);
 
-            controls.appendChild(attemptsControl);
+            topRow.appendChild(topGroup);
+            topRow.appendChild(topAttemptsControl);
+
+            controls.appendChild(zoneRow);
+            controls.appendChild(topRow);
             boulderSection.appendChild(controls);
 
             // Score display
