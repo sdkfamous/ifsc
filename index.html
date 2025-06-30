@@ -641,57 +641,81 @@
         }
 
         // Get scores needed for each podium position
-        const targetScores = {
-          1:
-            currentStandings[0]?.id === competitor.id
-              ? currentStandings[1]?.currentScore || 0
-              : currentStandings[0]?.currentScore || 0,
-          2:
-            currentStandings[1]?.id === competitor.id
-              ? currentStandings[2]?.currentScore || 0
-              : currentStandings[1]?.currentScore || 0,
-          3:
-            currentStandings[2]?.id === competitor.id
-              ? currentStandings[3]?.currentScore || 0
-              : currentStandings[2]?.currentScore || 0,
+        // We need to beat everyone above the position we want
+        const scoresForPositions = {
+          1: currentStandings[0]?.currentScore || 0, // Need to beat current 1st
+          2: currentStandings[1]?.currentScore || 0, // Need to beat current 2nd (or equal if we're ok with 2nd=)
+          3: currentStandings[2]?.currentScore || 0, // Need to beat current 3rd (or equal if we're ok with 3rd=)
         };
 
         // Check each podium position
         for (let position = 1; position <= 3; position++) {
-          const targetScore = targetScores[position];
-          const needed = targetScore - competitor.currentScore + 0.1;
+          // Skip if already in this position
+          if (competitor.currentPosition === position) {
+            const competitorsAtSameScore = currentStandings.filter(
+              (c) => Math.abs(c.currentScore - competitor.currentScore) < 0.01
+            ).length;
 
-          if (competitor.currentPosition === position && needed <= 0) {
-            scenarios.push(
-              `Currently holding ${position}${
-                position === 1 ? "st" : position === 2 ? "nd" : "rd"
-              } place`
-            );
+            if (competitorsAtSameScore > 1) {
+              scenarios.push(
+                `Currently tied for ${position}${
+                  position === 1 ? "st" : position === 2 ? "nd" : "rd"
+                } place`
+              );
+            } else {
+              scenarios.push(
+                `Currently holding ${position}${
+                  position === 1 ? "st" : position === 2 ? "nd" : "rd"
+                } place`
+              );
+            }
             continue;
           }
 
-          if (needed <= 0) continue;
+          // For each position, we need to beat everyone currently ahead of that position
+          // For 1st: beat current 1st
+          // For 2nd: beat current 2nd (which means we'll be at least 2nd)
+          // For 3rd: beat current 3rd (which means we'll be at least 3rd)
+          const targetScore = scoresForPositions[position];
 
           // Check if it's even possible to reach this score
-          if (competitor.maxPossibleScore < targetScore) {
-            continue; // Skip this position as it's impossible to reach
+          if (competitor.maxPossibleScore <= targetScore) {
+            continue; // Can't beat the score needed for this position
           }
 
-          // Find the simplest path to reach this position
+          // Find paths to beat the target score
           const paths = calculateOptimalPaths(
             unattemptedBoulders,
-            needed,
             competitor,
-            currentStandings,
-            targetScore
+            targetScore,
+            position,
+            true
           );
 
           if (paths.length > 0) {
             const positionName =
               position === 1 ? "1st" : position === 2 ? "2nd" : "3rd";
-            scenarios.push(
-              ...paths.map((path) => `For ${positionName}: ${path}`)
+            paths.forEach((path) =>
+              scenarios.push(`For ${positionName}: ${path}`)
             );
+          }
+
+          // Also check for equal positions
+          if (competitor.maxPossibleScore >= targetScore) {
+            const equalPaths = calculateOptimalPaths(
+              unattemptedBoulders,
+              competitor,
+              targetScore,
+              position,
+              false
+            );
+            if (equalPaths.length > 0) {
+              const positionName =
+                position === 1 ? "1st=" : position === 2 ? "2nd=" : "3rd=";
+              equalPaths.forEach((path) =>
+                scenarios.push(`For ${positionName}: ${path}`)
+              );
+            }
           }
         }
 
@@ -700,103 +724,117 @@
 
       function calculateOptimalPaths(
         unattemptedBoulders,
-        neededScore,
         competitor,
-        currentStandings,
-        targetScore
+        targetScore,
+        position,
+        needToBeat
       ) {
         const paths = [];
         const boulderNumbers = unattemptedBoulders.map((b) => b.index + 1);
 
-        // Double-check if the score is achievable
+        // Calculate points needed
+        const pointsNeeded = needToBeat
+          ? targetScore - competitor.currentScore + 0.1 // Need to beat
+          : targetScore - competitor.currentScore; // Need to equal
+
+        // Double-check if achievable
         const maxPossibleFromRemaining = unattemptedBoulders.length * 100;
-        if (neededScore > maxPossibleFromRemaining) {
-          return paths; // Impossible to reach target
+        if (pointsNeeded > maxPossibleFromRemaining || pointsNeeded <= 0) {
+          return paths;
         }
 
         // Case 1: Single boulder scenarios
-        if (neededScore <= 100 && unattemptedBoulders.length >= 1) {
-          const maxAttempts = Math.floor((100 - neededScore) / 0.1) + 1;
+        if (pointsNeeded <= 100 && unattemptedBoulders.length >= 1) {
+          // Calculate attempts for a top (100 points minus deductions)
+          // Score from top = 100 - (attempts - 1) * 0.1
+          // So: attempts = ((100 - pointsNeeded) / 0.1) + 1
+          const attemptsForTop = Math.ceil((100 - pointsNeeded) / 0.1) + 1;
 
-          if (maxAttempts >= 1) {
+          if (attemptsForTop >= 1 && attemptsForTop <= 20) {
             if (boulderNumbers.length === 1) {
               paths.push(
                 `Complete Boulder ${
                   boulderNumbers[0]
-                } top within ${maxAttempts} attempt${
-                  maxAttempts > 1 ? "s" : ""
+                } top in ${attemptsForTop} attempt${
+                  attemptsForTop > 1 ? "s" : ""
                 }`
               );
             } else {
               paths.push(
-                `Complete any 1 top within ${maxAttempts} attempt${
-                  maxAttempts > 1 ? "s" : ""
+                `Complete any 1 top in ${attemptsForTop} attempt${
+                  attemptsForTop > 1 ? "s" : ""
                 }`
               );
             }
+          } else if (attemptsForTop > 20 && needToBeat) {
+            // If we need to beat and it's achievable with any number of attempts
+            if (boulderNumbers.length === 1) {
+              paths.push(`Complete Boulder ${boulderNumbers[0]} top`);
+            } else {
+              paths.push(`Complete any 1 top`);
+            }
           }
+          // Don't show equal placing options if it requires more than 20 attempts
 
           // Check if just a zone would work
-          if (neededScore <= 25) {
-            const zoneAttempts = Math.floor((25 - neededScore) / 0.1) + 1;
-            if (zoneAttempts >= 1) {
+          if (pointsNeeded <= 25) {
+            const attemptsForZone = Math.ceil((25 - pointsNeeded) / 0.1) + 1;
+            if (attemptsForZone >= 1 && attemptsForZone <= 20) {
               paths.push(
-                `Get 1 zone within ${zoneAttempts} attempt${
-                  zoneAttempts > 1 ? "s" : ""
+                `Get 1 zone in ${attemptsForZone} attempt${
+                  attemptsForZone > 1 ? "s" : ""
                 }`
               );
+            } else if (attemptsForZone > 20 && needToBeat) {
+              paths.push(`Get 1 zone`);
             }
           }
         }
 
         // Case 2: Multiple boulder scenarios
-        if (neededScore > 25 && unattemptedBoulders.length >= 2) {
-          const topsNeeded = Math.ceil(neededScore / 100);
+        if (pointsNeeded > 25 && unattemptedBoulders.length >= 2) {
+          const topsNeeded = Math.ceil(pointsNeeded / 100);
 
           if (topsNeeded <= unattemptedBoulders.length) {
             // Calculate average attempts allowed
-            const totalScoreNeeded = topsNeeded * 100;
-            const allowedDeduction = totalScoreNeeded - neededScore;
+            const totalScoreFromTops = topsNeeded * 100;
+            const allowedDeduction = totalScoreFromTops - pointsNeeded;
             const avgAttemptsPerTop =
               Math.floor(allowedDeduction / (topsNeeded * 0.1)) + 1;
 
-            if (avgAttemptsPerTop >= 1) {
+            if (avgAttemptsPerTop >= 1 && avgAttemptsPerTop <= 20) {
               const boulderList = boulderNumbers
                 .slice(0, topsNeeded)
                 .join(", ");
               if (topsNeeded === unattemptedBoulders.length) {
                 paths.push(
-                  `Complete all ${topsNeeded} remaining tops averaging ${avgAttemptsPerTop} attempts each`
+                  `Complete all ${topsNeeded} remaining tops averaging ${avgAttemptsPerTop} attempt${
+                    avgAttemptsPerTop > 1 ? "s" : ""
+                  } each`
                 );
               } else {
                 paths.push(
-                  `Complete ${topsNeeded} tops (e.g., Boulders ${boulderList}) averaging ${avgAttemptsPerTop} attempts each`
+                  `Complete ${topsNeeded} tops (e.g., Boulders ${boulderList}) averaging ${avgAttemptsPerTop} attempt${
+                    avgAttemptsPerTop > 1 ? "s" : ""
+                  } each`
+                );
+              }
+            } else if (avgAttemptsPerTop > 20 && needToBeat) {
+              const boulderList = boulderNumbers
+                .slice(0, topsNeeded)
+                .join(", ");
+              if (topsNeeded === unattemptedBoulders.length) {
+                paths.push(`Complete all ${topsNeeded} remaining tops`);
+              } else {
+                paths.push(
+                  `Complete ${topsNeeded} tops (e.g., Boulders ${boulderList})`
                 );
               }
             }
           }
         }
 
-        // Case 3: Reference to other competitors - only if achievable
-        const competitorAhead = currentStandings.find(
-          (c) => Math.abs(c.currentScore - targetScore) < 0.01
-        );
-        if (
-          competitorAhead &&
-          competitorAhead.id !== competitor.id &&
-          competitor.maxPossibleScore >= targetScore
-        ) {
-          const theirRemaining = competitorAhead.boulders.filter(
-            (b) => !b.attempted
-          ).length;
-          if (theirRemaining > 0) {
-            paths.push(
-              `Match ${competitorAhead.name}'s score with fewer total attempts`
-            );
-          }
-        }
-
-        return paths.slice(0, 2); // Return only the 2 most relevant paths
+        return paths.slice(0, 2); // Return most relevant paths
       }
 
       // Initial display update
