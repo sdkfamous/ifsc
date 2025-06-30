@@ -83,10 +83,11 @@
       }
       th,
       td {
-        padding: 12px;
+        padding: 8px 6px;
         text-align: left;
         border-bottom: 1px solid #ddd;
         white-space: nowrap;
+        vertical-align: top;
       }
       th {
         background-color: #f8f9fa;
@@ -98,48 +99,36 @@
       .boulder-section {
         display: flex;
         flex-direction: column;
-        gap: 8px;
-        align-items: center;
+        gap: 6px;
+        align-items: flex-start;
         white-space: nowrap;
+        padding: 0;
       }
       .boulder-controls {
         display: flex;
         flex-direction: column;
-        gap: 8px;
-        align-items: center;
+        gap: 4px;
+        align-items: flex-start;
       }
       .boulder-row {
         display: flex;
-        gap: 10px;
+        gap: 6px;
         align-items: center;
         font-size: 12px;
       }
-      .boulder-row .ternary-button,
-      .boulder-row .checkbox-group {
-        min-width: 60px;
+      .boulder-row .ternary-button {
+        min-width: 50px;
+        font-size: 11px;
       }
-      .checkbox-group {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-      }
-      .checkbox-group input[type="checkbox"] {
-        width: 18px;
-        height: 18px;
-        cursor: pointer;
-      }
-      .checkbox-group label {
-        cursor: pointer;
-        font-size: 14px;
-      }
+
       .ternary-button {
-        width: 60px;
-        height: 28px;
+        width: 50px;
+        height: 26px;
         border: 1px solid #ddd;
         background: white;
         cursor: pointer;
         border-radius: 4px;
-        font-size: 14px;
+        font-size: 11px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -166,16 +155,16 @@
       .attempts-control {
         display: flex;
         align-items: center;
-        gap: 5px;
+        gap: 3px;
       }
       .attempts-control button {
-        width: 24px;
-        height: 24px;
+        width: 20px;
+        height: 20px;
         border: 1px solid #ddd;
         background: white;
         cursor: pointer;
-        border-radius: 4px;
-        font-size: 16px;
+        border-radius: 3px;
+        font-size: 14px;
         line-height: 1;
         padding: 0;
         transition: background-color 0.2s ease;
@@ -188,19 +177,22 @@
         outline-offset: 2px;
       }
       .attempts-control input {
-        width: 40px;
+        width: 32px;
         text-align: center;
         border: 1px solid #ddd;
-        border-radius: 4px;
-        padding: 4px;
+        border-radius: 3px;
+        padding: 2px;
+        font-size: 12px;
       }
       .attempts-control input:invalid {
         border-color: #f44336;
       }
       .score {
         font-weight: bold;
-        font-size: 14px;
+        font-size: 12px;
         color: #666;
+        margin-top: 2px;
+        text-align: left;
       }
       .total-score {
         font-weight: bold;
@@ -259,7 +251,7 @@
         }
         th,
         td {
-          padding: 8px 4px;
+          padding: 6px 3px;
         }
         .boulder-controls {
           gap: 4px;
@@ -503,19 +495,19 @@
         debouncedUpdateDisplay();
       }
 
-      function updateCheckbox(competitorId, boulderIndex, type, checked) {
+      function updateTop(competitorId, boulderIndex) {
         const competitor = competitors.find((c) => c.id === competitorId);
         if (!competitor) return;
 
         const boulder = competitor.boulders[boulderIndex];
 
-        if (type === "top") {
-          boulder.top = checked;
-          boulder.attempted = true;
-          // If checking top, zone must be achieved (logical consistency)
-          if (checked) {
-            boulder.zone = true;
-          }
+        // Toggle between false and true (only two states)
+        boulder.top = !boulder.top;
+        boulder.attempted = true;
+
+        // If checking top, zone must be achieved (logical consistency)
+        if (boulder.top) {
+          boulder.zone = true;
         }
 
         debouncedUpdateDisplay();
@@ -744,25 +736,30 @@
             const topRow = document.createElement("div");
             topRow.className = "boulder-row";
 
-            // Top checkbox
-            const topGroup = document.createElement("div");
-            topGroup.className = "checkbox-group";
-            const topCheckbox = document.createElement("input");
-            topCheckbox.type = "checkbox";
-            topCheckbox.id = `top-${competitor.id}-${i}`;
-            topCheckbox.checked = boulder.top;
-            topCheckbox.setAttribute(
+            // Top toggle button
+            const topButton = document.createElement("button");
+            topButton.className = "ternary-button";
+            topButton.setAttribute(
               "aria-label",
-              `Top completed for boulder ${i + 1}`
+              `Toggle top status for boulder ${i + 1}`
             );
-            topCheckbox.onchange = (e) =>
-              updateCheckbox(competitor.id, i, "top", e.target.checked);
+            topButton.setAttribute("tabindex", "0");
 
-            const topLabel = document.createElement("label");
-            topLabel.htmlFor = `top-${competitor.id}-${i}`;
-            topLabel.textContent = "Top";
-            topGroup.appendChild(topCheckbox);
-            topGroup.appendChild(topLabel);
+            if (boulder.top) {
+              topButton.className += " success";
+              topButton.setAttribute("aria-pressed", "true");
+            } else {
+              topButton.setAttribute("aria-pressed", "false");
+            }
+
+            topButton.textContent = "Top";
+            topButton.onclick = () => updateTop(competitor.id, i);
+            topButton.onkeydown = (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                updateTop(competitor.id, i);
+              }
+            };
 
             // Top attempts control
             const topAttemptsControl = document.createElement("div");
@@ -799,7 +796,7 @@
             topAttemptsControl.appendChild(topAttemptsInput);
             topAttemptsControl.appendChild(topPlusBtn);
 
-            topRow.appendChild(topGroup);
+            topRow.appendChild(topButton);
             topRow.appendChild(topAttemptsControl);
 
             controls.appendChild(zoneRow);
