@@ -508,6 +508,10 @@
         // If checking top, zone must be achieved (logical consistency)
         if (boulder.top) {
           boulder.zone = true;
+          // Ensure topAttempts >= zoneAttempts
+          if (boulder.topAttempts < boulder.zoneAttempts) {
+            boulder.topAttempts = boulder.zoneAttempts;
+          }
         }
 
         debouncedUpdateDisplay();
@@ -523,7 +527,15 @@
           return;
         }
 
-        competitor.boulders[boulderIndex].zoneAttempts = attempts;
+        const boulder = competitor.boulders[boulderIndex];
+        boulder.zoneAttempts = attempts;
+
+        // Zone attempts automatically set the minimum for top attempts
+        // (since all attempts to reach zone are also attempts toward the top)
+        if (boulder.topAttempts < attempts) {
+          boulder.topAttempts = attempts;
+        }
+
         debouncedUpdateDisplay();
       }
 
@@ -537,6 +549,13 @@
           Math.min(MAX_ATTEMPTS, boulder.zoneAttempts + delta)
         );
         boulder.zoneAttempts = newAttempts;
+
+        // Zone attempts automatically set the minimum for top attempts
+        // (since all attempts to reach zone are also attempts toward the top)
+        if (boulder.topAttempts < newAttempts) {
+          boulder.topAttempts = newAttempts;
+        }
+
         debouncedUpdateDisplay();
       }
 
@@ -550,7 +569,17 @@
           return;
         }
 
-        competitor.boulders[boulderIndex].topAttempts = attempts;
+        const boulder = competitor.boulders[boulderIndex];
+
+        // If zone is achieved, ensure topAttempts >= zoneAttempts
+        if (boulder.zone === true && attempts < boulder.zoneAttempts) {
+          showError(
+            `Top attempts (${attempts}) cannot be less than zone attempts (${boulder.zoneAttempts})`
+          );
+          return;
+        }
+
+        boulder.topAttempts = attempts;
         debouncedUpdateDisplay();
       }
 
@@ -559,10 +588,16 @@
         if (!competitor) return;
 
         const boulder = competitor.boulders[boulderIndex];
-        const newAttempts = Math.max(
+        let newAttempts = Math.max(
           1,
           Math.min(MAX_ATTEMPTS, boulder.topAttempts + delta)
         );
+
+        // If zone is achieved, ensure topAttempts >= zoneAttempts
+        if (boulder.zone === true) {
+          newAttempts = Math.max(newAttempts, boulder.zoneAttempts);
+        }
+
         boulder.topAttempts = newAttempts;
         debouncedUpdateDisplay();
       }
@@ -699,12 +734,15 @@
             zoneAttemptsControl.setAttribute("role", "group");
             zoneAttemptsControl.setAttribute(
               "aria-label",
-              `Zone attempts for boulder ${i + 1}`
+              `Attempts to achieve zone for boulder ${i + 1}`
             );
 
             const zoneMinusBtn = document.createElement("button");
             zoneMinusBtn.textContent = "-";
-            zoneMinusBtn.setAttribute("aria-label", "Decrease zone attempts");
+            zoneMinusBtn.setAttribute(
+              "aria-label",
+              "Decrease attempts to achieve zone"
+            );
             zoneMinusBtn.onclick = () =>
               changeZoneAttempts(competitor.id, i, -1);
 
@@ -715,14 +753,17 @@
             zoneAttemptsInput.value = boulder.zoneAttempts;
             zoneAttemptsInput.setAttribute(
               "aria-label",
-              `Number of zone attempts for boulder ${i + 1}`
+              `Number of attempts to achieve zone for boulder ${i + 1}`
             );
             zoneAttemptsInput.onchange = (e) =>
               updateZoneAttempts(competitor.id, i, e.target.value);
 
             const zonePlusBtn = document.createElement("button");
             zonePlusBtn.textContent = "+";
-            zonePlusBtn.setAttribute("aria-label", "Increase zone attempts");
+            zonePlusBtn.setAttribute(
+              "aria-label",
+              "Increase attempts to achieve zone"
+            );
             zonePlusBtn.onclick = () => changeZoneAttempts(competitor.id, i, 1);
 
             zoneAttemptsControl.appendChild(zoneMinusBtn);
@@ -767,12 +808,15 @@
             topAttemptsControl.setAttribute("role", "group");
             topAttemptsControl.setAttribute(
               "aria-label",
-              `Top attempts for boulder ${i + 1}`
+              `Total attempts to achieve top for boulder ${i + 1}`
             );
 
             const topMinusBtn = document.createElement("button");
             topMinusBtn.textContent = "-";
-            topMinusBtn.setAttribute("aria-label", "Decrease top attempts");
+            topMinusBtn.setAttribute(
+              "aria-label",
+              "Decrease total attempts to achieve top"
+            );
             topMinusBtn.onclick = () => changeTopAttempts(competitor.id, i, -1);
 
             const topAttemptsInput = document.createElement("input");
@@ -782,14 +826,17 @@
             topAttemptsInput.value = boulder.topAttempts;
             topAttemptsInput.setAttribute(
               "aria-label",
-              `Number of top attempts for boulder ${i + 1}`
+              `Total number of attempts to achieve top for boulder ${i + 1}`
             );
             topAttemptsInput.onchange = (e) =>
               updateTopAttempts(competitor.id, i, e.target.value);
 
             const topPlusBtn = document.createElement("button");
             topPlusBtn.textContent = "+";
-            topPlusBtn.setAttribute("aria-label", "Increase top attempts");
+            topPlusBtn.setAttribute(
+              "aria-label",
+              "Increase total attempts to achieve top"
+            );
             topPlusBtn.onclick = () => changeTopAttempts(competitor.id, i, 1);
 
             topAttemptsControl.appendChild(topMinusBtn);
