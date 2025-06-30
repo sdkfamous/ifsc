@@ -358,6 +358,12 @@
       const MAX_ATTEMPTS = 50;
       const DECIMAL_PRECISION = 1;
 
+      // Scoring constants
+      const TOP_SCORE = 25; // Points awarded for completing a boulder (top)
+      const ZONE_SCORE = 10; // Points awarded for reaching the zone
+      const ATTEMPT_DEDUCTION = 0.1; // Points deducted per additional attempt
+      const MAX_ANALYSIS_ATTEMPTS = 20; // Maximum attempts shown in analysis scenarios
+
       // Utility functions
       function sanitizeInput(input) {
         return input.trim().replace(/[<>'"&]/g, "");
@@ -533,13 +539,13 @@
 
         let score = 0;
         if (boulder.top) {
-          score = 100;
+          score = TOP_SCORE;
         } else if (boulder.zone === true) {
-          score = 25;
+          score = ZONE_SCORE;
         }
 
-        // Deduct 0.1 for each attempt after the first
-        const deduction = (boulder.attempts - 1) * 0.1;
+        // Deduct ATTEMPT_DEDUCTION for each attempt after the first
+        const deduction = (boulder.attempts - 1) * ATTEMPT_DEDUCTION;
         return Math.max(0, Math.round((score - deduction) * 10) / 10); // Round to 1 decimal place
       }
 
@@ -793,7 +799,8 @@
             const currentScore = calculateTotalScore(c);
             const unattemptedBoulders = c.boulders.filter((b) => !b.attempted);
             const remainingBoulders = unattemptedBoulders.length;
-            const maxPossibleScore = currentScore + remainingBoulders * 100;
+            const maxPossibleScore =
+              currentScore + remainingBoulders * TOP_SCORE;
 
             return {
               ...c,
@@ -985,19 +992,20 @@
           : targetScore - competitor.currentScore; // Need to equal
 
         // Double-check if achievable
-        const maxPossibleFromRemaining = unattemptedBoulders.length * 100;
+        const maxPossibleFromRemaining = unattemptedBoulders.length * TOP_SCORE;
         if (pointsNeeded > maxPossibleFromRemaining || pointsNeeded <= 0) {
           return paths;
         }
 
         // Case 1: Single boulder scenarios
-        if (pointsNeeded <= 100 && unattemptedBoulders.length >= 1) {
-          // Calculate attempts for a top (100 points minus deductions)
-          // Score from top = 100 - (attempts - 1) * 0.1
-          // So: attempts = ((100 - pointsNeeded) / 0.1) + 1
-          const attemptsForTop = Math.ceil((100 - pointsNeeded) / 0.1) + 1;
+        if (pointsNeeded <= TOP_SCORE && unattemptedBoulders.length >= 1) {
+          // Calculate attempts for a top (TOP_SCORE points minus deductions)
+          // Score from top = TOP_SCORE - (attempts - 1) * ATTEMPT_DEDUCTION
+          // So: attempts = ((TOP_SCORE - pointsNeeded) / ATTEMPT_DEDUCTION) + 1
+          const attemptsForTop =
+            Math.ceil((TOP_SCORE - pointsNeeded) / ATTEMPT_DEDUCTION) + 1;
 
-          if (attemptsForTop >= 1 && attemptsForTop <= 20) {
+          if (attemptsForTop >= 1 && attemptsForTop <= MAX_ANALYSIS_ATTEMPTS) {
             if (boulderNumbers.length === 1) {
               paths.push(
                 `Complete Boulder ${
@@ -1013,7 +1021,7 @@
                 }`
               );
             }
-          } else if (attemptsForTop > 20 && needToBeat) {
+          } else if (attemptsForTop > MAX_ANALYSIS_ATTEMPTS && needToBeat) {
             // If we need to beat and it's achievable with any number of attempts
             if (boulderNumbers.length === 1) {
               paths.push(`Complete Boulder ${boulderNumbers[0]} top`);
@@ -1024,32 +1032,40 @@
           // Don't show equal placing options if it requires more than 20 attempts
 
           // Check if just a zone would work
-          if (pointsNeeded <= 25) {
-            const attemptsForZone = Math.ceil((25 - pointsNeeded) / 0.1) + 1;
-            if (attemptsForZone >= 1 && attemptsForZone <= 20) {
+          if (pointsNeeded <= ZONE_SCORE) {
+            const attemptsForZone =
+              Math.ceil((ZONE_SCORE - pointsNeeded) / ATTEMPT_DEDUCTION) + 1;
+            if (
+              attemptsForZone >= 1 &&
+              attemptsForZone <= MAX_ANALYSIS_ATTEMPTS
+            ) {
               paths.push(
                 `Get 1 zone in ${attemptsForZone} attempt${
                   attemptsForZone > 1 ? "s" : ""
                 }`
               );
-            } else if (attemptsForZone > 20 && needToBeat) {
+            } else if (attemptsForZone > MAX_ANALYSIS_ATTEMPTS && needToBeat) {
               paths.push(`Get 1 zone`);
             }
           }
         }
 
         // Case 2: Multiple boulder scenarios
-        if (pointsNeeded > 25 && unattemptedBoulders.length >= 2) {
-          const topsNeeded = Math.ceil(pointsNeeded / 100);
+        if (pointsNeeded > ZONE_SCORE && unattemptedBoulders.length >= 2) {
+          const topsNeeded = Math.ceil(pointsNeeded / TOP_SCORE);
 
           if (topsNeeded <= unattemptedBoulders.length) {
             // Calculate average attempts allowed
-            const totalScoreFromTops = topsNeeded * 100;
+            const totalScoreFromTops = topsNeeded * TOP_SCORE;
             const allowedDeduction = totalScoreFromTops - pointsNeeded;
             const avgAttemptsPerTop =
-              Math.floor(allowedDeduction / (topsNeeded * 0.1)) + 1;
+              Math.floor(allowedDeduction / (topsNeeded * ATTEMPT_DEDUCTION)) +
+              1;
 
-            if (avgAttemptsPerTop >= 1 && avgAttemptsPerTop <= 20) {
+            if (
+              avgAttemptsPerTop >= 1 &&
+              avgAttemptsPerTop <= MAX_ANALYSIS_ATTEMPTS
+            ) {
               const boulderList = boulderNumbers
                 .slice(0, topsNeeded)
                 .join(", ");
@@ -1066,7 +1082,10 @@
                   } each`
                 );
               }
-            } else if (avgAttemptsPerTop > 20 && needToBeat) {
+            } else if (
+              avgAttemptsPerTop > MAX_ANALYSIS_ATTEMPTS &&
+              needToBeat
+            ) {
               const boulderList = boulderNumbers
                 .slice(0, topsNeeded)
                 .join(", ");
