@@ -1520,14 +1520,14 @@
 
         // Check Zone requirement first (easier option)
         const maxZoneAttempts = Math.floor(
-          (competitor.currentScore + ZONE_SCORE - targetScore - 0.01) /
+          (competitor.currentScore + ZONE_SCORE - targetScore) /
             ATTEMPT_DEDUCTION +
             1
         );
 
         if (
           maxZoneAttempts >= 1 &&
-          competitor.currentScore + ZONE_SCORE > targetScore
+          competitor.currentScore + ZONE_SCORE >= targetScore
         ) {
           // Show zone option if it can achieve the target position
           if (maxZoneAttempts > 50) {
@@ -1545,14 +1545,14 @@
 
         // Check Top requirement (harder option, only if zone can't achieve target)
         const maxTopAttempts = Math.floor(
-          (competitor.currentScore + TOP_SCORE - targetScore - 0.01) /
+          (competitor.currentScore + TOP_SCORE - targetScore) /
             ATTEMPT_DEDUCTION +
             1
         );
 
         if (
           maxTopAttempts >= 1 &&
-          competitor.currentScore + ZONE_SCORE <= targetScore
+          competitor.currentScore + ZONE_SCORE < targetScore
         ) {
           if (maxTopAttempts <= 50) {
             const attemptText =
