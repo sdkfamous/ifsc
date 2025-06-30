@@ -299,6 +299,43 @@
         aria-live="polite"
       ></div>
 
+      <div style="margin: 20px 0">
+        <button
+          onclick="showPodiumAnalysis()"
+          style="
+            padding: 10px 20px;
+            background: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.2s ease;
+          "
+          aria-label="Analyze podium chances"
+          onmouseover="this.style.background='#1976d2'"
+          onmouseout="this.style.background='#2196f3'"
+        >
+          📊 Analyze Podium Chances
+        </button>
+      </div>
+
+      <div
+        id="podiumAnalysis"
+        style="
+          display: none;
+          margin: 20px 0;
+          padding: 20px;
+          background: #f8f9fa;
+          border-radius: 8px;
+        "
+        role="region"
+        aria-labelledby="analysisTitle"
+      >
+        <h2 id="analysisTitle" style="margin-top: 0">Podium Analysis</h2>
+        <div id="analysisContent"></div>
+      </div>
+
       <div class="table-wrapper">
         <table id="scoreTable" role="table" aria-label="Competition scores">
           <thead>
@@ -1253,6 +1290,316 @@
         announceToScreenReader(
           "Test competition data loaded: 8 competitors added"
         );
+      }
+
+      function showPodiumAnalysis() {
+        const analysisDiv = document.getElementById("podiumAnalysis");
+        const content = document.getElementById("analysisContent");
+
+        if (competitors.length === 0) {
+          showError("Please add competitors first");
+          return;
+        }
+
+        // Toggle display
+        if (analysisDiv.style.display === "none") {
+          analysisDiv.style.display = "block";
+          content.innerHTML = generatePodiumAnalysis();
+        } else {
+          analysisDiv.style.display = "none";
+        }
+      }
+
+      function generatePodiumAnalysis() {
+        try {
+          // Calculate current scores and standings
+          const competitorAnalysis = competitors.map((c) => {
+            const currentScore = calculateTotalScore(c);
+            const unattemptedBoulders = c.boulders.filter((b) => !b.attempted);
+            const remainingBoulders = unattemptedBoulders.length;
+            const maxPossibleScore =
+              currentScore + remainingBoulders * TOP_SCORE;
+            const isFinished = remainingBoulders === 0;
+
+            return {
+              ...c,
+              currentScore,
+              remainingBoulders,
+              unattemptedBoulders,
+              maxPossibleScore,
+              isFinished,
+            };
+          });
+
+          // Sort by current score to determine standings
+          const currentStandings = [...competitorAnalysis].sort(
+            (a, b) => b.currentScore - a.currentScore
+          );
+
+          // Calculate positions with proper tie handling
+          let currentPosition = 1;
+          let previousScore = null;
+          let tiedCount = 0;
+
+          currentStandings.forEach((comp) => {
+            if (
+              previousScore !== null &&
+              Math.abs(comp.currentScore - previousScore) > 0.01
+            ) {
+              currentPosition += tiedCount;
+              tiedCount = 1;
+            } else {
+              tiedCount++;
+            }
+            comp.currentPosition = currentPosition;
+            previousScore = comp.currentScore;
+          });
+
+          // Update original analysis array with positions
+          competitorAnalysis.forEach((comp) => {
+            const standingComp = currentStandings.find((c) => c.id === comp.id);
+            comp.currentPosition = standingComp.currentPosition;
+          });
+
+          let html = "";
+
+          // Sort by current position for display
+          const sortedByPosition = [...competitorAnalysis].sort(
+            (a, b) => a.currentPosition - b.currentPosition
+          );
+
+          sortedByPosition.forEach((competitor) => {
+            const analysis = analyzePodiumChances(
+              competitor,
+              competitorAnalysis
+            );
+
+            // Format position text with tie handling
+            const competitorsAtSameScore = competitorAnalysis.filter(
+              (c) => Math.abs(c.currentScore - competitor.currentScore) < 0.01
+            ).length;
+
+            const positionSuffix = getPositionSuffix(
+              competitor.currentPosition
+            );
+            let positionText;
+            if (competitorsAtSameScore > 1) {
+              positionText = `tied for ${competitor.currentPosition}${positionSuffix} place`;
+            } else {
+              positionText = `${competitor.currentPosition}${positionSuffix} place`;
+            }
+
+            html += `<div style="margin-bottom: 20px; padding: 15px; background: white; border-radius: 4px; border: 1px solid #ddd;">`;
+            html += `<h3 style="margin-top: 0; color: #333;">${
+              competitor.name
+            } - Currently ${positionText} (${competitor.currentScore.toFixed(
+              1
+            )} points)</h3>`;
+
+            html += `<div style="margin-left: 10px;">`;
+            analysis.forEach((message) => {
+              html += `<p style="margin: 5px 0; color: #555;">• ${message}</p>`;
+            });
+            html += `</div>`;
+
+            html += `</div>`;
+          });
+
+          return html;
+        } catch (error) {
+          console.error("Error generating podium analysis:", error);
+          return `<p style="color: #f44336;">Error generating analysis. Please try again.</p>`;
+        }
+      }
+
+      function analyzePodiumChances(competitor, allCompetitors) {
+        const messages = [];
+
+        // Case 1: Competitor has finished all boulders
+        if (competitor.isFinished) {
+          messages.push(
+            `All boulders completed - Final score: ${competitor.currentScore.toFixed(
+              1
+            )} points`
+          );
+          return messages;
+        }
+
+        // Case 2: Check if podium is mathematically possible
+        if (competitor.maxPossibleScore < getPodiumThreshold(allCompetitors)) {
+          messages.push(
+            `Cannot reach podium (max possible: ${competitor.maxPossibleScore.toFixed(
+              1
+            )} points)`
+          );
+          return messages;
+        }
+
+        // Case 3: Analyze requirements for each podium position
+        const podiumRequirements = calculatePodiumRequirements(
+          competitor,
+          allCompetitors
+        );
+
+        if (podiumRequirements.length === 0) {
+          messages.push(
+            "No podium improvements possible with remaining boulders"
+          );
+        } else {
+          podiumRequirements.forEach((req) => messages.push(req));
+        }
+
+        return messages;
+      }
+
+      function calculatePodiumRequirements(competitor, allCompetitors) {
+        const requirements = [];
+        const unattemptedBoulders = competitor.boulders
+          .map((b, idx) => ({ boulder: b, index: idx }))
+          .filter((item) => !item.boulder.attempted);
+
+        // Get current podium holders and their scores
+        const podiumHolders = getPodiumHolders(allCompetitors);
+
+        // Check requirements for each position (1st, 2nd, 3rd)
+        for (let targetPosition = 1; targetPosition <= 3; targetPosition++) {
+          if (targetPosition >= competitor.currentPosition) continue; // Only improvements
+
+          const positionRequirements = [];
+
+          // Check each unattempted boulder
+          unattemptedBoulders.forEach((item) => {
+            const boulderReqs = getBoulderRequirements(
+              competitor,
+              item,
+              targetPosition,
+              podiumHolders,
+              allCompetitors
+            );
+            positionRequirements.push(...boulderReqs);
+          });
+
+          // Add requirements for this position if any exist
+          if (positionRequirements.length > 0) {
+            const positionName = getPositionName(targetPosition);
+            const bestReq = positionRequirements[0]; // Take the first/best option
+
+            let competitionNote = "";
+            const potentialCompetitors = allCompetitors.filter(
+              (c) =>
+                c.id !== competitor.id &&
+                !c.isFinished &&
+                c.maxPossibleScore >= podiumHolders[targetPosition - 1]?.score
+            );
+
+            if (potentialCompetitors.length > 0) {
+              const competitorNames = potentialCompetitors
+                .map((c) => c.name)
+                .join(", ");
+              competitionNote = ` (and also beat: ${competitorNames})`;
+            }
+
+            requirements.push(
+              `For ${positionName}: ${bestReq}${competitionNote}`
+            );
+          }
+        }
+
+        return requirements;
+      }
+
+      function getBoulderRequirements(
+        competitor,
+        boulderItem,
+        targetPosition,
+        podiumHolders,
+        allCompetitors
+      ) {
+        const requirements = [];
+        const targetScore = podiumHolders[targetPosition - 1]?.score || 0;
+
+        // Check Zone requirement first (easier option)
+        const maxZoneAttempts = Math.floor(
+          (competitor.currentScore + ZONE_SCORE - targetScore - 0.01) /
+            ATTEMPT_DEDUCTION +
+            1
+        );
+
+        if (
+          maxZoneAttempts >= 1 &&
+          competitor.currentScore + ZONE_SCORE > targetScore
+        ) {
+          // Show zone option if it can achieve the target position
+          if (maxZoneAttempts > 50) {
+            requirements.push(`Zone Boulder ${boulderItem.index + 1}`);
+          } else {
+            const zoneAttemptText =
+              maxZoneAttempts === 1
+                ? " within 1 attempt"
+                : ` within ${maxZoneAttempts} attempts`;
+            requirements.push(
+              `Zone Boulder ${boulderItem.index + 1}${zoneAttemptText}`
+            );
+          }
+        }
+
+        // Check Top requirement (harder option, only if zone can't achieve target)
+        const maxTopAttempts = Math.floor(
+          (competitor.currentScore + TOP_SCORE - targetScore - 0.01) /
+            ATTEMPT_DEDUCTION +
+            1
+        );
+
+        if (
+          maxTopAttempts >= 1 &&
+          competitor.currentScore + ZONE_SCORE <= targetScore
+        ) {
+          if (maxTopAttempts <= 50) {
+            const attemptText =
+              maxTopAttempts === 1
+                ? " within 1 attempt"
+                : ` within ${maxTopAttempts} attempts`;
+            requirements.push(
+              `Top Boulder ${boulderItem.index + 1}${attemptText}`
+            );
+          } else {
+            requirements.push(`Top Boulder ${boulderItem.index + 1}`);
+          }
+        }
+
+        return requirements;
+      }
+
+      function getPodiumHolders(allCompetitors) {
+        const sorted = [...allCompetitors].sort(
+          (a, b) => b.currentScore - a.currentScore
+        );
+        return [
+          { position: 1, score: sorted[0]?.currentScore || 0, competitors: [] },
+          { position: 2, score: sorted[1]?.currentScore || 0, competitors: [] },
+          { position: 3, score: sorted[2]?.currentScore || 0, competitors: [] },
+        ];
+      }
+
+      function getPodiumThreshold(allCompetitors) {
+        const sorted = [...allCompetitors].sort(
+          (a, b) => b.currentScore - a.currentScore
+        );
+        return sorted[2]?.currentScore || 0; // 3rd place score
+      }
+
+      function getPositionSuffix(position) {
+        return position === 1
+          ? "st"
+          : position === 2
+          ? "nd"
+          : position === 3
+          ? "rd"
+          : "th";
+      }
+
+      function getPositionName(position) {
+        return position === 1 ? "1st" : position === 2 ? "2nd" : "3rd";
       }
 
       // Initial display update
