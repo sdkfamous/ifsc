@@ -578,22 +578,22 @@ const analysis = {
       return messages;
     }
 
-    const podiumRequirements = this.calculatePodiumRequirements(
+    const guaranteedRequirements = this.calculateGuaranteedPlacements(
       competitor,
       allCompetitors
     );
-    if (podiumRequirements.length === 0) {
+    if (guaranteedRequirements.length === 0) {
       messages.push(
-        "No podium improvements possible with remaining boulders"
+        "No podium scenarios with remaining boulders"
       );
     } else {
-      podiumRequirements.forEach((req) => messages.push(req));
+      guaranteedRequirements.forEach((req) => messages.push(req));
     }
 
     return messages;
   },
 
-  calculatePodiumRequirements(competitor, allCompetitors) {
+  calculateGuaranteedPlacements(competitor, allCompetitors) {
     const requirements = [];
     const unattemptedBoulders = competitor.boulders
       .map((b, idx) => ({ boulder: b, index: idx }))
@@ -602,8 +602,6 @@ const analysis = {
     const podiumHolders = this.getPodiumHolders(allCompetitors);
 
     for (let targetPosition = 1; targetPosition <= 3; targetPosition++) {
-      if (targetPosition >= competitor.currentPosition) continue;
-
       const positionRequirements = [];
       unattemptedBoulders.forEach((item) => {
         const boulderReqs = this.getBoulderRequirements(
@@ -625,7 +623,7 @@ const analysis = {
             : "3rd";
         const bestReq = positionRequirements[0];
 
-        let competitionNote = "";
+        // First, check if there are competitors who could compete for this position
         const potentialCompetitors = allCompetitors.filter(
           (c) =>
             c.id !== competitor.id &&
@@ -634,19 +632,90 @@ const analysis = {
         );
 
         if (potentialCompetitors.length > 0) {
+          // There is competition, so use competitive format
           const competitorNames = potentialCompetitors
             .map((c) => c.name)
             .join(", ");
-          competitionNote = ` (and also beat: ${competitorNames})`;
-        }
+          const competitionNote = ` (and also beat: ${competitorNames})`;
+          
+          requirements.push(
+            `For ${positionName}: ${bestReq}${competitionNote}`
+          );
+        } else {
+          // No competition possible, check if it's truly guaranteed
+          const isGuaranteed = this.isPositionGuaranteed(
+            competitor,
+            bestReq,
+            targetPosition,
+            allCompetitors
+          );
 
-        requirements.push(
-          `For ${positionName}: ${bestReq}${competitionNote}`
-        );
+          if (isGuaranteed) {
+            requirements.push(`Guarantees ${positionName}: ${bestReq}`);
+          } else {
+            requirements.push(`For ${positionName}: ${bestReq}`);
+          }
+        }
       }
     }
 
     return requirements;
+  },
+
+  isPositionGuaranteed(competitor, requirement, targetPosition, allCompetitors) {
+    // Calculate what score this competitor would achieve with this requirement
+    const achievableScore = this.calculateScoreFromRequirement(competitor, requirement);
+    
+    // Get all other competitors (finished and unfinished)
+    const otherCompetitors = allCompetitors.filter(c => c.id !== competitor.id);
+    
+    // Count how many competitors could potentially achieve a better score
+    let competitorsWhoCanBeat = 0;
+    
+    for (const otherComp of otherCompetitors) {
+      if (otherComp.isFinished) {
+        // If they're finished and have a better score, they definitely beat us
+        if (otherComp.currentScore > achievableScore) {
+          competitorsWhoCanBeat++;
+        }
+      } else {
+        // If they're not finished and their max possible score is better, they could beat us
+        if (otherComp.maxPossibleScore > achievableScore) {
+          competitorsWhoCanBeat++;
+        }
+      }
+    }
+    
+    // Position is guaranteed only if fewer competitors can beat the score than needed for that position
+    // 1st place: 0 competitors can beat us
+    // 2nd place: at most 1 competitor can beat us
+    // 3rd place: at most 2 competitors can beat us
+    return competitorsWhoCanBeat < targetPosition;
+  },
+
+  calculateScoreFromRequirement(competitor, requirement) {
+    // Parse the requirement to determine the score
+    // Examples: "Zone Boulder 4 within 2 attempts", "Top Boulder 4 within 1 attempt"
+    
+    const isZone = requirement.includes("Zone");
+    const isTop = requirement.includes("Top");
+    
+    let score = competitor.currentScore;
+    let attempts = 1; // default to 1 attempt
+    
+    // Extract attempt count if specified
+    const attemptMatch = requirement.match(/within (\d+) attempt/);
+    if (attemptMatch) {
+      attempts = parseInt(attemptMatch[1]);
+    }
+    
+    if (isTop) {
+      score += CONFIG.TOP_SCORE - (attempts - 1) * CONFIG.ATTEMPT_DEDUCTION;
+    } else if (isZone) {
+      score += CONFIG.ZONE_SCORE - (attempts - 1) * CONFIG.ATTEMPT_DEDUCTION;
+    }
+    
+    return score;
   },
 
   getBoulderRequirements(
