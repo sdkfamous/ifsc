@@ -835,6 +835,36 @@ function updateDisplay() {
     totalScore: competitorManager.calculateTotalScore(c),
   }));
 
+  // Sort competitors by score to calculate positions
+  const sortedCompetitors = [...competitorsWithScores].sort(
+    (a, b) => b.totalScore - a.totalScore
+  );
+
+  // Calculate positions handling ties
+  let currentPosition = 1;
+  let previousScore = null;
+  let tiedCount = 0;
+
+  sortedCompetitors.forEach((comp) => {
+    if (
+      previousScore !== null &&
+      Math.abs(comp.totalScore - previousScore) > 0.01
+    ) {
+      currentPosition += tiedCount;
+      tiedCount = 1;
+    } else {
+      tiedCount++;
+    }
+    comp.currentPosition = currentPosition;
+    previousScore = comp.totalScore;
+  });
+
+  // Map positions back to original competitors
+  competitorsWithScores.forEach((comp) => {
+    const sortedComp = sortedCompetitors.find((c) => c.id === comp.id);
+    comp.currentPosition = sortedComp.currentPosition;
+  });
+
   const fragment = document.createDocumentFragment();
 
   competitorsWithScores.forEach((competitor, index) => {
@@ -846,9 +876,28 @@ function updateDisplay() {
     posCell.textContent = index + 1;
     row.appendChild(posCell);
 
-    // Name
+    // Name with current position
     const nameCell = document.createElement("td");
-    nameCell.textContent = competitor.name;
+    const nameDiv = document.createElement("div");
+    nameDiv.textContent = competitor.name;
+    nameDiv.style.fontWeight = "bold";
+    
+    const positionDiv = document.createElement("div");
+    positionDiv.className = "competitor-position";
+    const competitorsAtSameScore = competitorsWithScores.filter(
+      (c) => Math.abs(c.totalScore - competitor.totalScore) < 0.01
+    ).length;
+    
+    const positionSuffix = utils.getPositionSuffix(competitor.currentPosition);
+    const positionText = competitorsAtSameScore > 1
+      ? `Tied ${competitor.currentPosition}${positionSuffix}`
+      : `${competitor.currentPosition}${positionSuffix} place`;
+    
+    positionDiv.textContent = positionText;
+    positionDiv.setAttribute("aria-label", `Current position: ${positionText}`);
+    
+    nameCell.appendChild(nameDiv);
+    nameCell.appendChild(positionDiv);
     row.appendChild(nameCell);
 
     // Boulders
