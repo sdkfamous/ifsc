@@ -628,23 +628,54 @@ const analysis = {
     
     // Can they beat each podium position?
     if (currentPodium.length > 0) {
-      messages.push("Potential to beat:");
+      const beatable = currentPodium.filter(podiumCompetitor => 
+        competitor.maxPossibleScore > podiumCompetitor.currentScore
+      );
       
-      currentPodium.forEach((podiumCompetitor, index) => {
-        const position = ["1st", "2nd", "3rd"][index];
-        const positionSuffix = ["🥇", "🥈", "🥉"][index];
+      if (beatable.length > 0) {
+        messages.push("Potential to beat:");
         
-        if (competitor.maxPossibleScore > podiumCompetitor.currentScore) {
-          messages.push(`• ${positionSuffix} ${podiumCompetitor.name} (${podiumCompetitor.currentScore.toFixed(1)} pts) - possible with ${Math.ceil((podiumCompetitor.currentScore + 0.1 - competitor.currentScore) / CONFIG.TOP_SCORE)} tops`);
-        } else {
-          messages.push(`• ${positionSuffix} ${podiumCompetitor.name} (${podiumCompetitor.currentScore.toFixed(1)} pts) - cannot beat`);
-        }
-      });
+        beatable.forEach((podiumCompetitor) => {
+          const index = currentPodium.indexOf(podiumCompetitor);
+          const position = ["1st", "2nd", "3rd"][index];
+          const pointsNeeded = podiumCompetitor.currentScore + 0.1 - competitor.currentScore;
+          
+          let effortDescription;
+          if (pointsNeeded <= CONFIG.ZONE_SCORE) {
+            // Zone is sufficient
+            if (pointsNeeded <= CONFIG.ZONE_SCORE - CONFIG.ATTEMPT_DEDUCTION * 10) {
+              // Zone easily achievable even with many attempts
+              effortDescription = "zone";
+            } else {
+              // Zone possible but might need specific attempt count
+              const maxAttempts = Math.floor((CONFIG.ZONE_SCORE - pointsNeeded) / CONFIG.ATTEMPT_DEDUCTION) + 1;
+              if (maxAttempts >= 10) {
+                effortDescription = "zone";
+              } else {
+                effortDescription = `zone within ${maxAttempts} attempts`;
+              }
+            }
+          } else {
+            // Need top
+            const topsNeeded = Math.ceil(pointsNeeded / CONFIG.TOP_SCORE);
+            if (topsNeeded === 1) {
+              effortDescription = "1 top";
+            } else {
+              effortDescription = `${topsNeeded} tops`;
+            }
+          }
+          
+          messages.push(`• ${podiumCompetitor.name} (currently ${position}, ${podiumCompetitor.currentScore.toFixed(1)} pts) - possible with ${effortDescription}`);
+        });
+      }
     }
     
-    // Show competition from other unfinished competitors
-    const otherUnfinished = allCompetitors.filter(
-      c => c.id !== competitor.id && !c.isFinished && c.maxPossibleScore >= competitor.currentScore
+    // Show competition from other unfinished competitors (mutual competition)
+    const otherUnfinished = allCompetitors.filter(c => 
+      c.id !== competitor.id && 
+      !c.isFinished && 
+      c.maxPossibleScore >= competitor.currentScore && // They could beat this competitor
+      competitor.maxPossibleScore >= c.currentScore    // This competitor could beat them
     );
     
     if (otherUnfinished.length > 0) {
