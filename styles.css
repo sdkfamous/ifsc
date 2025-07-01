@@ -335,6 +335,17 @@ tbody tr:hover {
   color: var(--text-primary);
 }
 
+/* Competitor Name and Position */
+.competitor-name {
+  font-weight: bold;
+}
+
+.competitor-position {
+  font-size: 0.85em;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
 .position {
   font-weight: bold;
   font-size: 18px;
